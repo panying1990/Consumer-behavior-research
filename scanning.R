@@ -18,7 +18,7 @@ library(RMySQL)
 conn1<-dbConnect(MySQL(),dbname="data_check",host="192.168.111.251",username="root",password="P#y20bsy17")
 dbSendQuery(conn1,"SET NAMES gbk")
 
-# 读取文本数据
+# 处理1药网数据
 dir<-getwd()
 setwd(dir)
 mas_fristdrug_data2<-read.csv('mas_fristdrug_data2.csv')
@@ -44,6 +44,52 @@ mkt_scan_brandsum<-filter(mkt_scan_brand, channel_name == "天猫" & substr(year
 mkt_scan_brandsum<-mutate(mkt_scan_tmallsum, brand_ratio = round(100*chan_bran_sale/industry_sale,2))
 
 
+# 用户-地域分布-消费者渗透
+dbSendQuery(conn1,"SET NAMES gbk")
+user_province_read<-dbSendQuery(conn1, "SELECT * from user_province_test")
+user_province_test<-dbFetch(user_province_read,-1)
+
+# 用户-地域分布-区域分布
+dbSendQuery(conn1,"SET NAMES gbk")
+shop_province_read<-dbSendQuery(conn1, "SELECT * from user_province_shop")
+shop_province_test<-dbFetch(shop_province_read,-1)
+
+# 用户-地域分布-客单价分布
+dbSendQuery(conn1,"SET NAMES gbk")
+price_province_read<-dbSendQuery(conn1, "SELECT * from user_province_price")
+price_province_test<-dbFetch(price_province_read,-1)
+
+# 三茶-地域分布-消费者渗透
+dbSendQuery(conn1,"SET NAMES gbk")
+santea_province_read<-dbSendQuery(conn1, "SELECT * from santea_user_province")
+santea_user_province<-dbFetch(santea_province_read,-1)
+
+# 三茶-地域分布-区域分布
+dbSendQuery(conn1,"SET NAMES gbk")
+santea_shop_read<-dbSendQuery(conn1, "SELECT * from santea_province_shop")
+santea_province_shop<-dbFetch(santea_shop_read,-1)
+
+# 三茶-地域分布-客单价分布
+dbSendQuery(conn1,"SET NAMES gbk")
+santea_price_read<-dbSendQuery(conn1, "SELECT * from santea_province_price")
+santea_province_price<-dbFetch(santea_price_read,-1)
+
+
+# 新产品-地域分布-消费者渗透
+dbSendQuery(conn1,"SET NAMES gbk")
+newproduct_province_read<-dbSendQuery(conn1, "SELECT * from newproduct_user_province")
+newproduct_user_province<-dbFetch(newproduct_province_read,-1)
+
+# 新产品-地域分布-区域分布
+dbSendQuery(conn1,"SET NAMES gbk")
+newproduct_shop_read<-dbSendQuery(conn1, "SELECT * from newproduct_province_shop")
+newproduct_province_shop<-dbFetch(newproduct_shop_read,-1)
+
+# 新产品-地域分布-客单价分布
+dbSendQuery(conn1,"SET NAMES gbk")
+newproduct_price_read<-dbSendQuery(conn1, "SELECT * from newproduct_province_price")
+newproduct_province_price<-dbFetch(newproduct_price_read,-1)
+
 # 全景扫描-数据可视化========================================================
 library(sp)
 library(maptools)
@@ -54,108 +100,130 @@ library(mapdata)
 # 传统的地图调用使用google地图，国内比较特殊，故此处调用百度地图完成可视化地图的绘制
 library(REmap)
 library(baidumap)
-set.seed(125)  
-out = remap(demoC,title = "REmap",subtitle = "theme:Dark")  
-plot(out) 
+
+# 主题设置
+theme_province<-get_theme(theme = "Sky", lineColor = "#080808",backgroundColor = "#080808", titleColor = "#080808",
+          borderColor = "#080808", regionColor = "#080808")
 
 
-geoData  = get_geo_position(unique(demoC[demoC==demoC]))  
-remapB(markLineData = demoC,geoData = geoData) 
-
-data = data.frame(country = mapNames("world"),  
-                  value = 5*sample(178)+200)  
-out = remapC(data,maptype = "world",color = 'skyblue')  
-plot(out) 
-
-# 绘制热力图
-pk_cities <- mapNames("中国")
-pk_cities_Geo <- get_geo_position(pk_cities)
-percent <- runif(17,min=0.25,max = 0.9)
-data_all <- data.frame(pk_cities_Geo[,1:2],percent)
-result <- remapH(data_all,
-                 maptype = "北京",
-                 theme = get_theme("Blue"),
-                 blurSize = 35,
-                 color = "red",
-                 minAlpha = 10,
-                 opacity = 1)
-
-# 用户行为========================================
-# 其他的图形绘制部分,直接使用Plotly
-library(stats)
-library(plotly)
+# 获得现有全部百度地图中所有城市的经纬度，
+zhejiang_city<- mapNames("zhejiang")
+zhejiang_city<-get_geo_position(zhejiang_city)
 
 
+# 碧生源品牌地域机会-消费者渗透：	0,100,0
+province_user <- data.frame(user_province_test[,1],user_province_test[,5])
+names(province_user)<-c("province","user_per")
+province_user$user_per[province_user$user_per>70]<-61
+remapC(province_user,color=c("#006400"),theme = theme_province,title="2016年01月-2017年09月全国分省用户数分布",subtitle="用户数(人)/十万人",mindata = 12,maxdata=61)
 
-# 购物篮分析========================================
+# 碧生源品牌地域机会-区域分布：255,69,0
+shop_province <- data.frame(shop_province_test[,1],shop_province_test[,5])
+names(shop_province)<-c("province","user_per_shop")
+shop_province$user_per_shop[shop_province$user_per_shop<1]<-0
+remapC(shop_province,color=c("#FF4500"),theme = theme_province,title="2016年01月-2017年09月全国分省用户数分布",subtitle="单店覆盖用户数(人)/店",mindata = 0,maxdata=18)
 
-# author:panying
-# 本代码块用于解决用户关联规则算法 
-# 设置工作路径及工作环境
-workdir<-getwd()
-if(!is.null(workdir))
-  setwd(workdir)
+# 碧生源品牌地域机会-客单价：	0,191,255
+price_province <- data.frame(price_province_test[,1],price_province_test[,5])
+names(price_province)<-c("province","user_price")
+price_province$user_price[price_province$user_price>205|price_province$user_price<140]<-0
+remapC(price_province,color=c("#00BFFF"),theme = theme_province,title="2016年01月-2017年09月全国分省用户数分布",subtitle="用户平均付款总额",mindata = 149,maxdata=200)
 
-library(Matrix)
-library(arules)
-#通过统一处理将数据转为为交易数据形式
-groceries <- read.transactions("groceries.csv", sep = ",") 
-#导入数据 data
-library(DBI)
-library(RMySQL)
-conn<-dbConnect(MySQL(),dbname="tag_explore",host="192.168.111.251",username="root",password="P#y20bsy17")
-dbSendQuery(conn,"SET NAMES gbk")
-# read_data<-dbSendQuery(conn, "SELECT * from kd_trade_brusher180")
-# kd_trade_brusher<-dbFetch(read_data,-1)
-
-#检查数据类型
-summary(groceries)
-inspect(groceries[1:5])
-
-# 检查数据集中各产品的支持度情况
-itemFrequency(groceries[, 1:3])
-
-#数据集中不同产品支持度可视化
-#1.支持度>0.1的的产品可视化
-itemFrequencyPlot(groceries, support = 0.1)
-#2.支持度排名前20的可视化
-itemFrequencyPlot(groceries, topN = 20)
-#3.可视化交易数据-绘制稀疏矩阵
-image(groceries[1:25])
-#4.随机抽样进行交易数据可视化
-image(sample(groceries, 100))
-
-#第三步：基于数据训练模型
-apriori(groceries)
+# 三茶地域机会-消费者渗透：	0,100,0
+santea_province<- data.frame(santea_user_province[,1],santea_user_province[,5])
+names(santea_province)<-c("province","user_per")
+santea_province$user_per[santea_province$user_per>100]<-100
+remapC(santea_province,color=c("#006400"),theme = theme_province,title="2016年01月-2017年09月全国分省三茶用户分布",subtitle="三茶用户占比（%）",mindata = 77,maxdata=91)
 
 
-# 根据需要调试支持度、置信度、交易包含项
-# 支持度support：某产品在交易集中出现的频率；
-# 置信度confidence: 类似条件概率
-# 交易订单项目：一般设置为>=2;
-groceryrules <- apriori(groceries, parameter = list(support = 0.006, confidence = 0.25, minlen = 2))
+# 三茶地域机会-区域分布：255,69,0
+santea_shop<- data.frame(santea_province_shop[,1],santea_province_shop[,5])
+names(santea_shop)<-c("province","user_per_shop")
+santea_shop$user_per_shop[santea_shop$user_per_shop<1]<-0
+remapC(santea_shop,color=c("#FF4500"),theme = theme_province,title="2016年01月-2017年09月全国分省三茶用户数分布",subtitle="单店覆盖用户数(人)/店",mindata = 0,maxdata=15)
+
+# 三茶地域机会-客单价：	0,191,255
+santea_price <- data.frame(santea_province_price[,1],santea_province_price[,5])
+names(santea_price)<-c("province","user_price")
+santea_price$user_price[santea_price$user_price>230|santea_price$user_price<160]<-0
+remapC(santea_price,color=c("#00BFFF"),theme = theme_province,title="2016年01月-2017年09月全国分省三茶用户数分布",subtitle="用户平均付款总额",mindata = 167,maxdata=227)
 
 
-#第四步：评估规则
-summary(groceryrules)
-inspect(groceryrules[1:5])
-
-#第五步：提高模型性能
-# 根据提升度情况，逐一检查规则的使用性
-inspect(sort(groceryrules, by = "lift")[1:5],decreasing=FALSE)
-# 将符合某一产品来源的规则进行检查
-berryrules <- subset(groceryrules, items %in% "berries")
-inspect(berryrules)
+# 新产品地域机会-消费者渗透：	0,100,0
+newproduct_user <- data.frame(newproduct_user_province[,1],newproduct_user_province[,5])
+names(newproduct_user)<-c("province","user_per")
+newproduct_user$user_per[newproduct_user$user_per>70]<-70
+remapC(newproduct_user,color=c("#006400"),theme = theme_province,title="2016年01月-2017年09月全国分省新产品用户数分布",subtitle="用户数(人)/十万人",mindata = 0,maxdata=25)
 
 
-# 将规则以CSV格式进行输出
-write(groceryrules, file = "groceryrules.csv",sep = ",", quote = TRUE, row.names = FALSE)
+# 新产品地域机会-区域分布：255,69,0
+newproduct_shop<- data.frame(newproduct_province_shop[,1],newproduct_province_shop[,5])
+names(newproduct_shop)<-c("province","user_per_shop")
+newproduct_shop$user_per_shop[newproduct_shop$user_per_shop<1]<-0
+remapC(newproduct_shop,color=c("#FF4500"),theme = theme_province,title="2016年01月-2017年09月全国分省新产品用户数分布",subtitle="单店覆盖用户数(人)/店",mindata = 0,maxdata=13)
 
-# 将规则作为数据框的格式进行输出
-groceryrules_df <- as(groceryrules, "data.frame")
-str(groceryrules_df)
+# 新产品地域机会-客单价：	0,191,255
+newproduct_price <- data.frame(newproduct_province_price[,1],newproduct_province_price[,5])
+names(newproduct_price)<-c("province","user_price")
+newproduct_price$user_price[newproduct_price$user_price>240|newproduct_price$user_price<110]<-0
+remapC(newproduct_price,color=c("#00BFFF"),theme = theme_province,title="2016年01月-2017年09月全国分省新产品用户数分布",subtitle="用户平均付款总额",mindata = 110,maxdata=240)
 
-#将数据写入到目标数据库方便之后做进一步整合
-dbListTables(conn)  
-dbWriteTable(conn,"groceryrules_df",groceryrules_df)  
-dbListTables(conn)
+
+
+# 各区域情况
+# 用户-浙江分布-消费者渗透
+dbSendQuery(conn1,"SET NAMES gbk")
+zhejiang_read<-dbSendQuery(conn1, "SELECT * from user_zhejiang_test")
+user_zhejiang_test<-dbFetch(zhejiang_read,-1)
+
+# 浙江分布-消费者渗透：	0,100,0
+zhejiang_user <- data.frame(user_zhejiang_test[,2],user_zhejiang_test[,5])
+names(zhejiang_user)<-c("city","user_per")
+zhejiang_user$user_per[zhejiang_user$user_per>70]<-70
+remapC(zhejiang_user,maptype = 'zhejiang',color=c("#006400"),theme = theme_province,title="2016年01月-2017年09月浙江省用户分布",subtitle="用户数(人)/十万人",mindata = 0,maxdata=61)
+
+# 用户-浙江分布-药店覆盖率
+dbSendQuery(conn1,"SET NAMES gbk")
+zhejiang_shop_read<-dbSendQuery(conn1, "SELECT * from user_zhejiang_shop")
+user_zhejiang_shop<-dbFetch(zhejiang_shop_read,-1)
+
+# 浙江分布-区域分布：255,69,0
+zhejiang_shop<- data.frame(user_zhejiang_shop[,2],user_zhejiang_shop[,5])
+names(zhejiang_shop)<-c("city","user_per_shop")
+zhejiang_shop$user_per_shop[zhejiang_shop$user_per_shop<1]<-0
+remapC(zhejiang_shop,maptype = 'zhejiang',color=c("#FF4500"),theme = theme_province,title="2016年01月-2017年09月浙江省用户分布",subtitle="单店覆盖用户数(人)/店",mindata = 0,maxdata=22)
+
+# 用户-浙江分布-客单价
+dbSendQuery(conn1,"SET NAMES gbk")
+zhejiang_price_read<-dbSendQuery(conn1, "SELECT * from user_zhejiang_price")
+user_zhejiang_price<-dbFetch(zhejiang_price_read,-1)
+
+# 用户-浙江分布-客单价：	0,191,255
+zhejiang_price <- data.frame(user_zhejiang_price[,2],user_zhejiang_price[,5])
+names(zhejiang_price)<-c("city","user_price")
+zhejiang_price$user_price[zhejiang_price$user_price>240|zhejiang_price$user_price<110]<-0
+remapC(zhejiang_price,maptype = 'zhejiang',color=c("#00BFFF"),theme = theme_province,title="2016年01月-2017年09月浙江省用户分布",subtitle="用户平均付款总额",mindata = 149,maxdata=200)
+
+
+# 三茶-浙江分布-客单价
+dbSendQuery(conn1,"SET NAMES gbk")
+zhejiang_santea_read<-dbSendQuery(conn1, "SELECT * from santea_user_zhejiang")
+santea_user_zhejiang<-dbFetch(zhejiang_santea_read,-1)
+
+# 三茶-浙江分布-消费者渗透：	0,100,0
+santea_zhejiang<- data.frame(santea_user_zhejiang[,2],santea_user_zhejiang[,5])
+names(santea_zhejiang)<-c("city","user_ratio")
+santea_zhejiang$user_ratio[santea_zhejiang$user_ratio>100]<-100
+remapC(santea_zhejiang,maptype = 'zhejiang',color=c("#006400"),theme = theme_province,title="2016年01月-2017年09月浙江省三茶用户分布",subtitle="三茶用户占比（%）",mindata = 85.6,maxdata=91)
+
+# 三茶-浙江分布-客单价
+dbSendQuery(conn1,"SET NAMES gbk")
+santea_zjpr_read<-dbSendQuery(conn1, "SELECT * from santea_zhejiang_price")
+santea_zhejiang_price<-dbFetch(santea_zjpr_read,-1)
+
+# 三茶-浙江分布-客单价：	0,191,255
+santea_zjpr <- data.frame(santea_zhejiang_price[,2],santea_zhejiang_price[,5])
+names(santea_zjpr)<-c("city","user_price")
+santea_zjpr$user_price[santea_zjpr$user_price>310|santea_zjpr$user_price<110]<-0
+remapC(santea_zjpr,maptype = 'zhejiang',color=c("#00BFFF"),theme = theme_province,title="2016年01月-2017年09月浙江省三茶用户分布",subtitle="用户平均付款总额",mindata = 167,maxdata=227)
+
