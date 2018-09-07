@@ -15,7 +15,7 @@ library(DBI)
 library(RMySQL)
 
 # 数据库环境设置
-conn1<-dbConnect(MySQL(),dbname="data_check",host="192.168.111.251",username="root",password="P#y20bsy17")
+conn1<-dbConnect(MySQL(),dbname="data_check",host="8888888888888888",username="88888",password="888888888")
 dbSendQuery(conn1,"SET NAMES gbk")
 
 # 处理1药网数据
